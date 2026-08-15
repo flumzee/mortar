@@ -1,0 +1,11 @@
+node_modules/
+dist/
+
+# Machine-specific tool permissions, not project config.
+.claude/settings.local.json
+
+npm-debug.log*
+*.log
+
+.DS_Store
+Thumbs.db

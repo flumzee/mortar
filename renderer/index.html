@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self';"
+    />
+    <title>mortar</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="ambient" aria-hidden="true">
+      <span class="orb orb-a"></span>
+      <span class="orb orb-b"></span>
+      <span class="orb orb-c"></span>
+      <span class="grain"></span>
+    </div>
+
+    <div id="app">
+      <div id="titlebar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <i></i><i></i><i></i><i></i>
+          </span>
+          <span class="brand-text">mortar <em>·</em> roblox studio</span>
+        </div>
+      </div>
+
+      <aside id="sidebar">
+        <header id="project-bar">
+          <div class="project-label">project</div>
+          <button id="project-picker" class="project-name" title="change project folder">
+            <span id="project-name-text">loading…</span>
+            <span class="chevron" data-icon="chevron-down" data-size="14"></span>
+          </button>
+        </header>
+
+        <button id="new-chat">
+          <span class="plus" data-icon="plus" data-size="15"></span> new chat
+        </button>
+
+        <div class="search-wrap">
+          <span class="search-icon" data-icon="search" data-size="14"></span>
+          <input
+            id="search"
+            type="text"
+            placeholder="search chats  (ctrl+k)"
+            spellcheck="false"
+            autocomplete="off"
+          />
+          <button id="search-clear" class="search-clear hidden" title="clear" data-icon="x" data-size="13"></button>
+        </div>
+
+        <div id="chat-list" class="chat-list"></div>
+
+        <footer id="status-bar">
+          <button id="account-row" class="status-row account-row" title="account">
+            <span id="account-dot" class="dot dot-idle"></span>
+            <span id="account-label">checking account…</span>
+          </button>
+          <div class="status-row">
+            <span id="mcp-dot" class="dot dot-idle"></span>
+            <span id="mcp-status">studio: not connected</span>
+          </div>
+          <div class="status-row" id="context-row">
+            <div class="context-track"><div id="context-fill"></div></div>
+            <span id="context-text">context</span>
+          </div>
+        </footer>
+      </aside>
+
+      <main id="main">
+        <header id="chat-header">
+          <input
+            id="chat-title"
+            class="chat-title"
+            placeholder="untitled chat"
+            spellcheck="false"
+          />
+          <div class="header-actions">
+            <button id="model-trigger" class="pill-trigger">
+              <span class="pill-pip" aria-hidden="true"></span>
+              <span class="pill-label">default model</span>
+            </button>
+            <button id="effort-trigger" class="pill-trigger">
+              <span class="pill-pip" aria-hidden="true"></span>
+              <span class="pill-label">default effort</span>
+            </button>
+            <button id="permission-trigger" class="pill-trigger">
+              <span class="pill-pip" aria-hidden="true"></span>
+              <span class="pill-label">ask for risky actions</span>
+            </button>
+          </div>
+        </header>
+
+        <div id="messages" class="messages">
+          <div id="empty-state" class="empty-state">
+            <div class="empty-mark" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </div>
+            <h1>mortar</h1>
+            <p>
+              every chat here is a real claude code session with your
+              <code>robloxstudio</code> server attached. pick one on the left to
+              carry on where you left off.
+            </p>
+          </div>
+        </div>
+
+        <div id="composer">
+          <div id="interrupt-row" class="hidden">
+            <span class="pulse-ring" aria-hidden="true"></span>
+            <span class="working">working</span>
+            <button id="interrupt">stop</button>
+          </div>
+          <div id="command-palette" class="command-palette hidden"></div>
+          <div id="attachment-tray" class="attachment-tray hidden"></div>
+          <div class="composer-box">
+            <button id="attach" title="attach files" data-icon="paperclip" data-size="17"></button>
+            <textarea
+              id="input"
+              rows="1"
+              placeholder="ask claude to change something in studio…"
+            ></textarea>
+            <button id="send" title="send (enter)">
+              <span>send</span>
+            </button>
+          </div>
+          <div class="composer-hint">
+            enter to send · shift+enter for a new line · <kbd>/</kbd> for
+            commands · paste or drop files
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="context-menu" class="context-menu hidden"></div>
+
+    <div id="dialog" class="modal hidden">
+      <div class="modal-card dialog-card">
+        <div class="modal-glow" aria-hidden="true"></div>
+        <h2 id="dialog-title">confirm</h2>
+        <p id="dialog-message" class="dialog-message"></p>
+        <input id="dialog-input" class="dialog-input hidden" spellcheck="false" />
+        <div class="modal-actions">
+          <button id="dialog-cancel">cancel</button>
+          <button id="dialog-confirm" class="btn-allow">confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="lightbox" class="lightbox hidden">
+      <div class="lightbox-bar">
+        <span id="lightbox-label" class="lightbox-label"></span>
+        <div class="lightbox-actions">
+          <button id="lightbox-prev" title="previous (←)" data-icon="chevron-left" data-size="16"></button>
+          <span id="lightbox-count" class="lightbox-count"></span>
+          <button id="lightbox-next" title="next (→)" data-icon="chevron-right" data-size="16"></button>
+          <button id="lightbox-save" class="lightbox-save" title="save to disk">
+            <span data-icon="download" data-size="13"></span> save
+          </button>
+          <button id="lightbox-close" title="close (esc)" data-icon="x" data-size="16"></button>
+        </div>
+      </div>
+      <div id="lightbox-stage" class="lightbox-stage">
+        <img id="lightbox-img" alt="" />
+      </div>
+    </div>
+
+    <div id="drop-overlay" class="drop-overlay hidden">
+      <div class="drop-card">
+        <div class="drop-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <strong>drop to attach</strong>
+        <span id="drop-limit">up to 400.0 MB per file</span>
+      </div>
+    </div>
+
+    <div id="permission-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-glow" aria-hidden="true"></div>
+        <h2 id="perm-title">allow this action?</h2>
+        <div id="perm-body" class="perm-body"></div>
+        <div class="modal-actions">
+          <button id="perm-deny" class="btn-deny">deny</button>
+          <button id="perm-always" class="btn-always">allow for this chat</button>
+          <button id="perm-allow" class="btn-allow">allow</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="icons.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

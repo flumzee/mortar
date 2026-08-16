@@ -1,6 +1,6 @@
 {
   "name": "mortar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Claude Code client for Roblox Studio",
   "private": true,
   "type": "module",
@@ -8,9 +8,9 @@
   "author": "flumzee",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux",
+    "dist": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
     "pack": "electron-builder --win --dir"
   },
   "dependencies": {

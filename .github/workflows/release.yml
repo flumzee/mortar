@@ -51,9 +51,11 @@ jobs:
           ls node_modules/@anthropic-ai/ | grep -E 'claude-agent-sdk-(win32|darwin|linux)' \
             || { echo "no platform CLI binary installed"; exit 1; }
 
+      # No GH_TOKEN here on purpose. electron-builder treats a git tag plus a
+      # token as "publish this yourself", which would race the release job
+      # below for the same release. The scripts also pass --publish never.
       - run: ${{ matrix.build }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Unsigned builds. Set CSC_LINK / CSC_KEY_PASSWORD to sign later.
           CSC_IDENTITY_AUTO_DISCOVERY: false
 

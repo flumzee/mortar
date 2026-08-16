@@ -1,0 +1,82 @@
+name: release
+
+# Each OS builds its own artifacts. This is not a preference: electron-builder
+# refuses macOS targets anywhere but macOS, and the Claude CLI ships as a
+# per-platform optional dependency that npm only installs for the host, so a
+# Linux build made on Windows silently packages a .exe it cannot run.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build: npm run dist
+            artifacts: |
+              dist/*.exe
+          - os: macos-latest
+            build: npm run dist:mac
+            artifacts: |
+              dist/*.dmg
+              dist/*.zip
+          - os: ubuntu-latest
+            build: npm run dist:linux
+            artifacts: |
+              dist/*.AppImage
+              dist/*.deb
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Fails loudly rather than shipping an app whose CLI cannot launch, which
+      # is otherwise a silent packaging bug you only find at runtime.
+      - name: Check the platform CLI binary is present
+        shell: bash
+        run: |
+          ls node_modules/@anthropic-ai/ | grep -E 'claude-agent-sdk-(win32|darwin|linux)' \
+            || { echo "no platform CLI binary installed"; exit 1; }
+
+      - run: ${{ matrix.build }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds. Set CSC_LINK / CSC_KEY_PASSWORD to sign later.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: true
+          generate_release_notes: true

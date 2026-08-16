@@ -89,6 +89,9 @@ const state = {
   replayToken: 0,
   mcpVersion: null,
   auth: null,
+  exploreGroup: null,
+  folders: [],
+  draggingChat: null,
 };
 
 /* ---------- tiny markdown renderer (input is escaped first) ---------- */
@@ -344,6 +347,7 @@ function clearMessages() {
   el.messages.classList.remove("loading");
   state.live = null;
   state.liveThinking = null;
+  state.exploreGroup = null;
   state.toolChips.clear();
 }
 
@@ -356,6 +360,7 @@ let messageSink = null;
 
 function addMessage(kind) {
   el.emptyState?.remove();
+  state.exploreGroup = null;
   const wrapper = document.createElement("div");
   wrapper.className = `msg msg-${kind}`;
   (messageSink ?? el.messages).appendChild(wrapper);
@@ -489,8 +494,98 @@ function renderAssistantBlocks(blocks) {
   scrollToBottom();
 }
 
+/**
+ * Looking around the place is most of what Claude does, and a full disclosure
+ * chip per lookup buries the actual work. These collapse to one line each and
+ * stack into a single block, the way a file listing reads.
+ */
+const EXPLORE_TOOLS = new Set([
+  "get_instance_children",
+  "get_descendants",
+  "get_project_structure",
+  "get_file_tree",
+  "get_instance_properties",
+  "get_services",
+  "get_selection",
+]);
+
+const SEARCH_TOOLS = new Set([
+  "search_objects",
+  "search_by_property",
+  "search_files",
+  "grep_scripts",
+  "get_tagged",
+]);
+
+function bareToolName(name) {
+  return name?.match(/^mcp__[^_]+(?:_[^_]+)*__(.+)$/)?.[1] ?? name ?? "";
+}
+
+function exploreRowFor(name, input) {
+  const bare = bareToolName(name);
+  const verb = EXPLORE_TOOLS.has(bare) ? "Explored" : SEARCH_TOOLS.has(bare) ? "Searched" : null;
+  if (!verb) return null;
+
+  const raw =
+    input?.path ?? input?.query ?? input?.pattern ?? input?.class_name ?? input?.tag ?? "game";
+  const target = typeof raw === "string" && raw.trim() ? raw.trim() : "game";
+
+  return { verb, target, icon: verb === "Explored" ? "folder" : "search" };
+}
+
+/** Consecutive lookups share one block; anything else in between breaks it. */
+function appendExploreRow(id, { verb, target, icon }) {
+  if (!state.exploreGroup || !state.exploreGroup.isConnected) {
+    const group = document.createElement("div");
+    group.className = "explore-group";
+    (state.live?.wrapper ?? addMessage("assistant")).appendChild(group);
+    state.exploreGroup = group;
+  }
+
+  const row = document.createElement("div");
+  row.className = "explore-row running";
+  row.appendChild(icon === "folder" ? iconNode("folder", 13) : iconNode("search", 13));
+
+  const verbEl = document.createElement("span");
+  verbEl.className = "explore-verb";
+  verbEl.textContent = verb;
+
+  const targetEl = document.createElement("span");
+  targetEl.className = "explore-target";
+  targetEl.textContent = target;
+  targetEl.title = target;
+
+  row.append(verbEl, targetEl);
+  state.exploreGroup.appendChild(row);
+
+  // Same shape applyToolResult expects, so the result path needs no special case.
+  const chip = {
+    row,
+    isExplore: true,
+    label: `${verb} ${target}`,
+    statusEl: { set className(v) {}, set textContent(v) {} },
+    details: { appendChild() {}, after() {}, set open(v) {} },
+  };
+  state.toolChips.set(id, chip);
+  return chip;
+}
+
+/** icons.js exposes icon(); this keeps a missing name from killing the row. */
+function iconNode(name, size) {
+  try {
+    return icon(name, size);
+  } catch {
+    return document.createElement("span");
+  }
+}
+
 function upsertToolChip(id, name, input) {
   let chip = state.toolChips.get(id);
+
+  if (!chip) {
+    const explore = exploreRowFor(name, input);
+    if (explore) return appendExploreRow(id, explore);
+  }
 
   if (!chip) {
     const label = prettyToolName(name);
@@ -677,6 +772,13 @@ function applyToolResult({ toolUseId, isError, text, images = [] }) {
   const chip = state.toolChips.get(toolUseId);
   if (!chip) return;
 
+  if (chip.isExplore) {
+    chip.row.classList.remove("running");
+    chip.row.classList.toggle("failed", Boolean(isError));
+    if (isError) chip.row.title = text?.slice(0, 300) ?? "failed";
+    return;
+  }
+
   chip.statusEl.className = `chip-status ${isError ? "err" : "ok"}`;
   chip.statusEl.textContent = isError ? "failed" : "done";
 
@@ -856,10 +958,26 @@ function highlightInto(target, text, query) {
   );
 }
 
-function sectionHeader(label) {
+function sectionHeader(label, onAdd = null) {
   const header = document.createElement("div");
   header.className = "list-section";
-  header.textContent = label;
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  header.appendChild(text);
+
+  if (onAdd) {
+    const add = document.createElement("button");
+    add.className = "section-add";
+    add.title = "new folder";
+    add.appendChild(icon("plus", 13));
+    add.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onAdd();
+    });
+    header.appendChild(add);
+  }
+
   return header;
 }
 
@@ -955,7 +1073,266 @@ function buildChatItem(chat) {
     openContextMenu(chat, event.clientX, event.clientY);
   });
 
+  item.draggable = true;
+  item.addEventListener("dragstart", (event) => {
+    state.draggingChat = chat.sessionId;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", chat.sessionId);
+    // Applied late so the drag image is captured before the item dims.
+    requestAnimationFrame(() => item.classList.add("dragging"));
+    document.body.classList.add("dragging-chat");
+  });
+  item.addEventListener("dragend", () => {
+    state.draggingChat = null;
+    item.classList.remove("dragging");
+    document.body.classList.remove("dragging-chat");
+    for (const node of document.querySelectorAll(".drop-target")) {
+      node.classList.remove("drop-target");
+    }
+  });
+
   return item;
+}
+
+/* ---------- folders ---------- */
+
+async function loadFolders() {
+  try {
+    state.folders = await window.hub.listFolders();
+  } catch (err) {
+    console.warn("folders unavailable", err);
+    state.folders = [];
+  }
+}
+
+/** Saves optimistically: the sidebar already moved, so waiting would only lag. */
+async function persistFolders() {
+  try {
+    state.folders = await window.hub.saveFolders(state.folders);
+  } catch (err) {
+    addNotice(`could not save folders: ${err.message}`, "error");
+    await loadFolders();
+    renderChatList();
+  }
+}
+
+function folderOf(sessionId) {
+  return state.folders.find((folder) => folder.chats.includes(sessionId)) ?? null;
+}
+
+/** Null folderId moves a chat back out to the ungrouped list. */
+async function moveChatToFolder(sessionId, folderId) {
+  const from = folderOf(sessionId);
+  if ((from?.id ?? null) === folderId) return;
+
+  for (const folder of state.folders) {
+    folder.chats = folder.chats.filter((id) => id !== sessionId);
+  }
+
+  const target = state.folders.find((folder) => folder.id === folderId);
+  if (target) {
+    target.chats.unshift(sessionId);
+    target.collapsed = false;
+  }
+
+  renderChatList();
+  await persistFolders();
+}
+
+async function createFolder() {
+  const name = await openDialog({
+    title: "new folder",
+    message: "group chats together in the sidebar.",
+    input: "",
+    confirmLabel: "create",
+  });
+  if (name === null) return;
+
+  const trimmed = name.trim() || "untitled folder";
+  state.folders.unshift({
+    id: `f_${Math.random().toString(36).slice(2, 10)}`,
+    name: trimmed,
+    pinned: false,
+    collapsed: false,
+    chats: [],
+  });
+
+  renderChatList();
+  await persistFolders();
+}
+
+async function renameFolder(folder) {
+  const name = await openDialog({
+    title: "rename folder",
+    message: "",
+    input: folder.name,
+    confirmLabel: "rename",
+  });
+  if (name === null) return;
+
+  folder.name = name.trim() || folder.name;
+  renderChatList();
+  await persistFolders();
+}
+
+async function deleteFolder(folder) {
+  const ok = await openDialog({
+    title: "delete folder",
+    message: [
+      { text: "delete " },
+      { text: folder.name, bold: true },
+      {
+        text: folder.chats.length
+          ? `? the ${folder.chats.length} chat${folder.chats.length === 1 ? "" : "s"} inside go back to recent, nothing is deleted.`
+          : "?",
+      },
+    ],
+    confirmLabel: "delete",
+    danger: true,
+  });
+  if (!ok) return;
+
+  state.folders = state.folders.filter((f) => f.id !== folder.id);
+  renderChatList();
+  await persistFolders();
+}
+
+async function toggleFolderPin(folder) {
+  folder.pinned = !folder.pinned;
+  renderChatList();
+  await persistFolders();
+}
+
+async function toggleFolderCollapsed(folder) {
+  folder.collapsed = !folder.collapsed;
+  renderChatList();
+  await persistFolders();
+}
+
+function openFolderMenu(folder, x, y) {
+  el.contextMenu.replaceChildren(
+    menuItem(
+      folder.pinned ? "unpin folder" : "pin folder",
+      folder.pinned ? "pin-off" : "pin",
+      () => toggleFolderPin(folder),
+    ),
+    menuItem("rename…", "pencil", () => renameFolder(folder)),
+    Object.assign(document.createElement("div"), { className: "menu-sep" }),
+    menuItem("delete…", "trash-2", () => deleteFolder(folder), { danger: true }),
+  );
+
+  el.contextMenu.classList.remove("hidden");
+  const left = Math.min(x, window.innerWidth - el.contextMenu.offsetWidth - 8);
+  const top = Math.min(y, window.innerHeight - el.contextMenu.offsetHeight - 8);
+  el.contextMenu.style.left = `${Math.max(8, left)}px`;
+  el.contextMenu.style.top = `${Math.max(8, top)}px`;
+}
+
+function buildFolder(folder, chatsById) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "folder";
+  if (folder.collapsed) wrapper.classList.add("collapsed");
+
+  const head = document.createElement("div");
+  head.className = "folder-head";
+  head.tabIndex = 0;
+
+  const twisty = document.createElement("span");
+  twisty.className = "folder-twisty";
+  twisty.appendChild(icon("chevron-right", 13));
+
+  const mark = document.createElement("span");
+  mark.className = "folder-icon";
+  mark.appendChild(icon("folder", 14));
+
+  const name = document.createElement("span");
+  name.className = "folder-name";
+  name.textContent = folder.name;
+  name.title = folder.name;
+
+  const count = document.createElement("span");
+  count.className = "folder-count";
+  count.textContent = String(folder.chats.length);
+
+  head.append(twisty, mark, name, count);
+
+  if (folder.pinned) {
+    const pin = document.createElement("span");
+    pin.className = "pin-badge";
+    pin.title = "pinned";
+    pin.appendChild(icon("pin", 11));
+    head.insertBefore(pin, count);
+  }
+
+  const menuButton = document.createElement("button");
+  menuButton.className = "chat-menu-btn";
+  menuButton.title = "folder options";
+  menuButton.appendChild(icon("ellipsis", 15));
+  menuButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const rect = menuButton.getBoundingClientRect();
+    openFolderMenu(folder, rect.right, rect.bottom + 4);
+  });
+  head.appendChild(menuButton);
+
+  head.addEventListener("click", () => toggleFolderCollapsed(folder));
+  head.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleFolderCollapsed(folder);
+    }
+  });
+  head.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    openFolderMenu(folder, event.clientX, event.clientY);
+  });
+
+  attachDropTarget(head, folder.id, wrapper);
+  wrapper.appendChild(head);
+
+  const body = document.createElement("div");
+  body.className = "folder-body";
+
+  if (!folder.collapsed) {
+    const chats = folder.chats.map((id) => chatsById.get(id)).filter(Boolean);
+    if (chats.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "folder-empty";
+      hint.textContent = "drop a chat here";
+      body.appendChild(hint);
+    }
+    for (const chat of chats) body.appendChild(buildChatItem(chat));
+  }
+
+  wrapper.appendChild(body);
+  return wrapper;
+}
+
+/**
+ * dragover has to be cancelled for a drop to fire at all, which is the usual
+ * reason a drop target silently does nothing.
+ */
+function attachDropTarget(element, folderId, highlight = element) {
+  element.addEventListener("dragover", (event) => {
+    if (!state.draggingChat) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    highlight.classList.add("drop-target");
+  });
+
+  element.addEventListener("dragleave", (event) => {
+    if (element.contains(event.relatedTarget)) return;
+    highlight.classList.remove("drop-target");
+  });
+
+  element.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    highlight.classList.remove("drop-target");
+
+    const sessionId = state.draggingChat ?? event.dataTransfer.getData("text/plain");
+    if (sessionId) moveChatToFolder(sessionId, folderId);
+  });
 }
 
 function renderChatList() {
@@ -964,7 +1341,7 @@ function renderChatList() {
 
   const matching = state.chats.filter((chat) => matchesSearch(chat, state.query));
 
-  if (matching.length === 0) {
+  if (matching.length === 0 && state.folders.length === 0) {
     const empty = document.createElement("div");
     empty.className = "chat-empty";
     empty.textContent = state.query
@@ -974,6 +1351,8 @@ function renderChatList() {
     return;
   }
 
+  // Search flattens everything: when you are looking for one chat you do not
+  // care which folder it lives in.
   if (state.query) {
     el.chatList.appendChild(
       sectionHeader(`${matching.length} result${matching.length === 1 ? "" : "s"}`),
@@ -982,14 +1361,28 @@ function renderChatList() {
     return;
   }
 
-  const pinned = matching.filter((chat) => chat.pinned);
-  const rest = matching.filter((chat) => !chat.pinned);
+  const chatsById = new Map(matching.map((chat) => [chat.sessionId, chat]));
+  const grouped = new Set(state.folders.flatMap((folder) => folder.chats));
+
+  const pinned = matching.filter((chat) => chat.pinned && !grouped.has(chat.sessionId));
+  const rest = matching.filter((chat) => !chat.pinned && !grouped.has(chat.sessionId));
 
   if (pinned.length > 0) {
     el.chatList.appendChild(sectionHeader("pinned"));
     for (const chat of pinned) el.chatList.appendChild(buildChatItem(chat));
-    if (rest.length > 0) el.chatList.appendChild(sectionHeader("recent"));
   }
+
+  if (state.folders.length > 0) {
+    el.chatList.appendChild(sectionHeader("folders", createFolder));
+    const ordered = [...state.folders].sort((a, b) => Number(b.pinned) - Number(a.pinned));
+    for (const folder of ordered) el.chatList.appendChild(buildFolder(folder, chatsById));
+  }
+
+  const recent = sectionHeader("recent", state.folders.length === 0 ? createFolder : null);
+  el.chatList.appendChild(recent);
+
+  // Dropping onto the recent header is how a chat leaves a folder.
+  attachDropTarget(recent, null);
 
   for (const chat of rest) el.chatList.appendChild(buildChatItem(chat));
 }
@@ -1025,6 +1418,40 @@ function menuItem(label, iconName, onClick, { danger = false } = {}) {
   return button;
 }
 
+/** Drag is the fast path; this is the one that works with a trackpad and a menu. */
+function folderMenuItems(chat) {
+  const items = [];
+  const current = folderOf(chat.sessionId);
+
+  if (current) {
+    items.push(
+      menuItem(`remove from ${current.name}`, "square-arrow-out-up-right", () =>
+        moveChatToFolder(chat.sessionId, null),
+      ),
+    );
+  }
+
+  for (const folder of state.folders) {
+    if (folder.id === current?.id) continue;
+    items.push(
+      menuItem(`move to ${folder.name}`, "folder", () =>
+        moveChatToFolder(chat.sessionId, folder.id),
+      ),
+    );
+  }
+
+  items.push(
+    menuItem("new folder…", "plus", async () => {
+      const before = new Set(state.folders.map((f) => f.id));
+      await createFolder();
+      const created = state.folders.find((f) => !before.has(f.id));
+      if (created) await moveChatToFolder(chat.sessionId, created.id);
+    }),
+  );
+
+  return items;
+}
+
 function openContextMenu(chat, x, y) {
   state.menuSessionId = chat.sessionId;
 
@@ -1035,6 +1462,7 @@ function openContextMenu(chat, x, y) {
       () => togglePin(chat),
     ),
     menuItem("rename…", "pencil", () => renameChatFlow(chat)),
+    ...folderMenuItems(chat),
     Object.assign(document.createElement("div"), { className: "menu-sep" }),
     menuItem("delete…", "trash-2", () => deleteChatFlow(chat), { danger: true }),
   );
@@ -2937,6 +3365,7 @@ window.hub.onEvent(handleEvent);
   el.projectName.textContent = state.projectDir.split(/[\\/]/).pop() || state.projectDir;
   el.projectPicker.title = state.projectDir;
 
+  await loadFolders();
   await refreshChats();
   await newChat();
 })();

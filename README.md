@@ -116,6 +116,19 @@ one to pick up exactly where you left off.
 
 Pinned chats stay at the top in their own section.
 
+### Folders
+
+Hover the **recent** header and click the `+` to make a folder. Drag chats into
+it, or right click a chat and pick "move to". Drag one back onto the **recent**
+header to take it out again.
+
+Click a folder to fold it shut. Right click one to rename, pin, or delete it.
+Pinned folders sort to the top, and deleting a folder never deletes the chats
+inside, they just go back to recent.
+
+Search ignores folders on purpose. When you are hunting for one chat you should
+not have to remember where you filed it.
+
 These are the same conversations Claude Code uses in the terminal, so anything
 you started there shows up here too, and the other way round.
 
@@ -161,7 +174,16 @@ here automatically.
 **Stuck on "studio: connecting"?** Give it a minute the first time, it may be
 downloading the connector. If it stays stuck, make sure Studio is actually open
 with a place loaded, and check that Node.js is installed by running `node -v` in
-a terminal. Restarting Studio once fixes most plugin problems.
+a terminal.
+
+Then restart Studio, which fixes most plugin problems. Studio only loads plugins
+when it starts, so a freshly installed or updated plugin does nothing until you
+restart it.
+
+If it still will not connect, install the plugin by hand: download
+[MCPPlugin.rbxmx](https://github.com/chrrxs/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx),
+put it in `%LOCALAPPDATA%\Roblox\Plugins\`, and restart Studio. That link is
+always the current version.
 
 **Says "signed out" or chats fail?** Type `/login` and sign in again.
 

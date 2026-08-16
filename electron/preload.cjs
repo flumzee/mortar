@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld("hub", {
   respondToPermission: (chatId, requestId, decision) =>
     invoke("permission:respond", chatId, requestId, decision),
 
+  listFolders: () => invoke("folders:get"),
+  saveFolders: (folders) => invoke("folders:save", folders),
+
   resolveClipboardFiles: (files) => invoke("clipboard:resolve", files),
 
   authStatus: () => invoke("auth:status"),

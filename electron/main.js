@@ -252,11 +252,19 @@ function createWindow() {
     title: "mortar",
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "#0e0e10",
-      symbolColor: "#a1a1aa",
-      height: TITLEBAR_HEIGHT,
-    },
+
+    // titleBarOverlay draws the window buttons and is Windows/Linux only. macOS
+    // keeps its own traffic lights, which land on top of the brand mark unless
+    // they are nudged down into the middle of the taller titlebar.
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 14, y: (TITLEBAR_HEIGHT - 16) / 2 } }
+      : {
+          titleBarOverlay: {
+            color: "#0e0e10",
+            symbolColor: "#a1a1aa",
+            height: TITLEBAR_HEIGHT,
+          },
+        }),
     webPreferences: {
       preload: path.join(DIR, "preload.cjs"),
       contextIsolation: true,
@@ -341,6 +349,10 @@ function openExternal(target) {
   }
 
   shell.openExternal(url.href);
+}
+
+function randomId() {
+  return `f_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function handle(channel, fn) {
@@ -479,6 +491,36 @@ handle("chats:list", async (projectDir) => {
     });
 });
 
+/**
+ * Folders are small and only ever edited from the one window this app allows,
+ * so the renderer owns the shape and saves the whole list rather than paying
+ * for a channel per operation. Membership is validated here so a bad payload
+ * cannot corrupt settings.json.
+ */
+handle("folders:get", () => settings.folders ?? []);
+
+handle("folders:save", async (folders) => {
+  if (!Array.isArray(folders)) throw new Error("folders must be an array");
+
+  const seen = new Set();
+  settings.folders = folders.slice(0, 200).map((folder) => {
+    const id = String(folder?.id ?? "").slice(0, 64) || randomId();
+    return {
+      id,
+      name: String(folder?.name ?? "untitled").slice(0, 80),
+      pinned: Boolean(folder?.pinned),
+      collapsed: Boolean(folder?.collapsed),
+      // A chat belongs to one folder, so the first claim on it wins.
+      chats: (Array.isArray(folder?.chats) ? folder.chats : [])
+        .filter((s) => typeof s === "string" && !seen.has(s) && seen.add(s))
+        .slice(0, 500),
+    };
+  });
+
+  await saveSettings();
+  return settings.folders;
+});
+
 handle("chats:setPinned", async (sessionId, pinned) => {
   const current = new Set(settings.pinned ?? []);
   if (pinned) current.add(sessionId);
@@ -607,11 +649,21 @@ handle("chat:rename", (sessionId, title, projectDir) =>
 handle("chat:delete", async (sessionId, projectDir) => {
   await hub.Delete(sessionId, projectDir ?? settings.projectDir);
 
-  // Don't leave a pin pointing at a session that no longer exists.
+  // Don't leave a pin or a folder entry pointing at a session that is gone.
+  let dirty = false;
+
   if (settings.pinned?.includes(sessionId)) {
     settings.pinned = settings.pinned.filter((id) => id !== sessionId);
-    await saveSettings();
+    dirty = true;
   }
+
+  for (const folder of settings.folders ?? []) {
+    if (!folder.chats?.includes(sessionId)) continue;
+    folder.chats = folder.chats.filter((id) => id !== sessionId);
+    dirty = true;
+  }
+
+  if (dirty) await saveSettings();
   return true;
 });
 

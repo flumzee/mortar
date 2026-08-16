@@ -9,6 +9,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
     "pack": "electron-builder --win --dir"
   },
   "dependencies": {
@@ -54,7 +56,57 @@
         }
       ]
     },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "darkModeSupport": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "artifactName": "Mortar-${version}-${arch}.dmg"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Development",
+      "maintainer": "flumzee",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "appImage": {
+      "artifactName": "Mortar-${version}-portable.AppImage"
+    },
+    "deb": {
+      "artifactName": "Mortar-${version}-${arch}.deb"
+    },
     "nsis": {
+      "artifactName": "Mortar-Setup-${version}.exe",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

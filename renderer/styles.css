@@ -2476,6 +2476,200 @@
     filter: brightness(1.07);
   }
 
+  /* ---------------- sidebar folders ---------------- */
+
+  /* The section's ::after is a flex:1 rule line, so ordering the button past it
+     is what puts it at the far right instead of next to the label. */
+  .section-add {
+    order: 1;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-faint);
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity var(--fast),
+      color var(--fast),
+      background var(--fast);
+  }
+
+  .list-section:hover .section-add,
+  .section-add:focus-visible {
+    opacity: 1;
+  }
+
+  .section-add:hover {
+    color: var(--text);
+    background: var(--bg-raised);
+  }
+
+  .folder {
+    margin-bottom: 2px;
+  }
+
+  .folder-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 9px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-dim);
+    user-select: none;
+    transition:
+      background var(--fast),
+      color var(--fast);
+  }
+
+  .folder-head:hover {
+    background: var(--bg-raised);
+    color: var(--text);
+  }
+
+  .folder-twisty {
+    display: grid;
+    place-items: center;
+    flex: none;
+    color: var(--text-faint);
+    transition: transform var(--med) var(--ease);
+    transform: rotate(90deg);
+  }
+
+  .folder.collapsed .folder-twisty {
+    transform: rotate(0deg);
+  }
+
+  .folder-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    color: var(--accent-soft);
+  }
+
+  .folder-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folder-count {
+    flex: none;
+    font-size: 11px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .folder-head .chat-menu-btn {
+    opacity: 0;
+  }
+
+  .folder-head:hover .chat-menu-btn {
+    opacity: 1;
+  }
+
+  .folder-body {
+    padding-left: 14px;
+    margin-left: 9px;
+    border-left: 1px solid var(--border);
+  }
+
+  .folder-empty {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-faint);
+    font-style: italic;
+  }
+
+  /* Drag and drop */
+
+  .chat-item.dragging {
+    opacity: 0.4;
+  }
+
+  body.dragging-chat .chat-item {
+    cursor: grabbing;
+  }
+
+  .drop-target,
+  .list-section.drop-target {
+    outline: 1px dashed var(--accent-soft);
+    outline-offset: -1px;
+    border-radius: var(--radius-sm);
+    background: rgb(var(--accent-rgb) / 0.07);
+  }
+
+  .folder.drop-target > .folder-head {
+    color: var(--text);
+  }
+
+  /* ---------------- studio lookups ---------------- */
+
+  .explore-group {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgb(var(--bg-rgb) / 0.35);
+    overflow: hidden;
+    margin: 2px 0;
+  }
+
+  .explore-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 11px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    min-width: 0;
+  }
+
+  .explore-row + .explore-row {
+    border-top: 1px solid var(--border);
+  }
+
+  .explore-row .icon {
+    flex: none;
+    opacity: 0.5;
+  }
+
+  .explore-verb {
+    flex: none;
+    color: var(--text-faint);
+  }
+
+  .explore-target {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .explore-row.running .explore-target {
+    color: var(--text-dim);
+  }
+
+  .explore-row.running .icon {
+    animation: explorePulse 1.2s var(--ease) infinite;
+  }
+
+  .explore-row.failed .explore-verb,
+  .explore-row.failed .explore-target {
+    color: var(--danger);
+  }
+
   /* ---------------- account ---------------- */
 
   .account-row {
@@ -2724,6 +2918,16 @@
   @keyframes pulseDot {
     0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 var(--accent-glow); }
     50% { opacity: 0.65; transform: scale(0.88); box-shadow: 0 0 0 6px transparent; }
+  }
+
+  @keyframes explorePulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
 
   @keyframes haloPulse {

@@ -39,6 +39,7 @@
     "asarUnpack": [
       "**/node_modules/@anthropic-ai/**"
     ],
+    "afterPack": "build/after-pack.cjs",
     "win": {
       "icon": "build/icon.ico",
       "target": [
